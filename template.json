@@ -1,0 +1,10 @@
+{
+  "name": "redis-stream-worker",
+  "description": "Async Redis Streams worker with KEDA, Prometheus metrics, W3C tracing, and a single handler hook.",
+  "variables": [
+    {
+      "name": "ROLE",
+      "description": "Worker role token used in stream keys and consumer group names (e.g. embed, summarize)."
+    }
+  ]
+}

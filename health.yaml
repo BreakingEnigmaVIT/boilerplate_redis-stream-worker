@@ -1,0 +1,5 @@
+# HTTP health for the in-process Prometheus server (port 8000).
+# Point probes at /metrics (always served) or add a dedicated /healthz in your fork.
+http:
+  port: 8000
+  path: /metrics

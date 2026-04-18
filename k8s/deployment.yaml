@@ -1,0 +1,62 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis-stream-worker
+  labels:
+    app.kubernetes.io/name: redis-stream-worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: redis-stream-worker
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: redis-stream-worker
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        readOnlyRootFilesystem: true
+      containers:
+        - name: worker
+          image: redis-stream-worker:latest
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: redis-stream-worker
+                  key: REDIS_URL
+            - name: STREAM_KEY
+              value: "swarm:tasks:{{ROLE}}"
+            - name: CONSUMER_GROUP
+              value: "workers:{{ROLE}}"
+            - name: DLQ_KEY
+              value: "swarm:dlq:{{ROLE}}"
+            - name: RESULTS_PREFIX
+              value: "swarm:results"
+            - name: ORCHESTRATOR_CHANNEL
+              value: "swarm:orchestrator:{{ROLE}}"
+          ports:
+            - name: metrics
+              containerPort: 8000
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: redis-stream-worker-scaledobject
+  labels:
+    app.kubernetes.io/name: redis-stream-worker
+spec:
+  scaleTargetRef:
+    name: redis-stream-worker
+  minReplicaCount: 0
+  maxReplicaCount: 20
+  pollingInterval: 15
+  triggers:
+    - type: redis-streams
+      metadata:
+        address: redis.default.svc.cluster.local:6379
+        stream: swarm:tasks:{{ROLE}}
+        consumerGroup: workers:{{ROLE}}
+        pendingEntriesCount: "10"

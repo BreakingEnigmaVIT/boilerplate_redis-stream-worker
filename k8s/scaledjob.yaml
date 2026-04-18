@@ -1,0 +1,53 @@
+apiVersion: keda.sh/v1alpha1
+kind: ScaledJob
+metadata:
+  name: redis-stream-worker-scaledjob
+  labels:
+    app.kubernetes.io/name: redis-stream-worker
+spec:
+  pollingInterval: 15
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 10
+  maxReplicaCount: 50
+  jobTargetRef:
+    parallelism: 1
+    completions: 1
+    completionMode: NonIndexed
+    ttlSecondsAfterFinished: 300
+    template:
+      spec:
+        restartPolicy: Never
+        terminationGracePeriodSeconds: 120
+        securityContext:
+          runAsNonRoot: true
+          readOnlyRootFilesystem: true
+        containers:
+          - name: worker
+            image: redis-stream-worker:latest
+            imagePullPolicy: IfNotPresent
+            env:
+              - name: REDIS_URL
+                valueFrom:
+                  secretKeyRef:
+                    name: redis-stream-worker
+                    key: REDIS_URL
+              - name: STREAM_KEY
+                value: "swarm:tasks:{{ROLE}}"
+              - name: CONSUMER_GROUP
+                value: "workers:{{ROLE}}"
+              - name: DLQ_KEY
+                value: "swarm:dlq:{{ROLE}}"
+              - name: RESULTS_PREFIX
+                value: "swarm:results"
+              - name: ORCHESTRATOR_CHANNEL
+                value: "swarm:orchestrator:{{ROLE}}"
+            ports:
+              - name: metrics
+                containerPort: 8000
+  triggers:
+    - type: redis-streams
+      metadata:
+        address: redis.default.svc.cluster.local:6379
+        stream: swarm:tasks:{{ROLE}}
+        consumerGroup: workers:{{ROLE}}
+        pendingEntriesCount: "5"
